@@ -66,7 +66,7 @@ function getStats() {
       }
       // Try to grab Wappalyzer info
       if(!empty($data[3]) && (empty($data[8]) || ($data[8] == 'Unknown' || $data[8] == 'wordpress' || $data[8] == 'drupal'))) {
-        $json = shell_exec('~/workspace/phantomjs/bin/phantomjs ./Wappalyzer/src/drivers/phantomjs/driver.js ' . $data[3]);
+        $json = shell_exec('phantomjs ./Wappalyzer/src/drivers/phantomjs/driver.js ' . $data[3]);
         if(!empty($json)) {
           $json = json_decode($json);
           if(!empty($json->applications)) {
