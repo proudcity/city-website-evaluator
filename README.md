@@ -59,7 +59,7 @@ Go to https://console.developers.google.com/, set up a new application.
 
 Make sure the project has access to the page-speed api: https://console.developers.google.com/apis/api/pagespeedonline/overview
 
-This should be free (under the limits) unlesss you're running the script constantly.
+This should be free (under the limits) unless you're running the script constantly.
 
 Get your api key set up...
 ```
