@@ -1,6 +1,13 @@
 <?php
 
+ini_set('max_execution_time', 30000);
+
 require 'vendor/autoload.php';
+
+use GuzzleHttp\Ring\Core;
+use GuzzleHttp\Ring\Exception\ConnectException;
+use GuzzleHttp\Ring\Exception\RingException;
+use GuzzleHttp\Ring\Future\CompletedFutureArray;
 
 $file = file_get_contents('.env.json');
 $env = json_decode($file, true);
@@ -33,6 +40,9 @@ function getStats() {
         $row++;
         continue;
       }
+      for ($i=0; $i < 14; $i++) { 
+        $data[$i] = !empty($data[$i]) ? $data[$i] : '';
+      }
       // Site inspector
       if(!empty($data[3]) && empty($data[6])) {
 
@@ -41,19 +51,44 @@ function getStats() {
         if(!empty($json)) {
           $inspect = json_decode($json);
           // https
-          $data[4] = !empty($data[4]) ? $data[4] : '';
-          $data[5] = !empty($data[5]) ? $data[5] : '';
           $data[6] = !empty($inspect->https) 
                          ? 'Yes' 
                          : 'No';
-          $data[7] = !empty($data[7]) ? $data[7] : '';
+          // No framework data
           $data[8] = !empty($inspect->canonical_endpoint->sniffer->framework)
                   ? $inspect->canonical_endpoint->sniffer->framework
                   : 'Unknown';
-          $data[9] = !empty($data[9]) ? $data[9] : '';
+          // Ipv6 support
           $data[10] = !empty($inspect->canonical_endpoint->dns->ipv6)
                   ? 'Yes'
                   : 'No';
+        }
+      }
+      // Try to grab Wappalyzer info
+      if(!empty($data[3]) && (empty($data[8]) || ($data[8] == 'Unknown' || $data[8] == 'wordpress' || $data[8] == 'drupal'))) {
+        $json = shell_exec('~/workspace/phantomjs/bin/phantomjs ./Wappalyzer/src/drivers/phantomjs/driver.js ' . $data[3]);
+        if(!empty($json)) {
+          $json = json_decode($json);
+          if(!empty($json->applications)) {
+            foreach($json->applications as $app) {
+              if(in_array('cms', $app->categories) && $app->confidence >= 50) {
+                // Build drupal version
+                if($app->name == 'Drupal') {
+                  $data[8] = $app->name . ' '
+                           . (!empty($app->version) ? $app->version : '6 or other');
+                }
+                // Wordpress versions
+                else if($app->name == 'WordPress') {
+                  $data[8] = $app->name . ' '
+                          . (!empty($app->version) ? substr($app->version, 1, 2) . 'x' : 'other');
+                }
+                // Just print
+                else {
+                  $data[8] = strtolower($app->name);
+                }
+              }
+            }
+          }
         }
       }
       // Google page speed
@@ -66,14 +101,21 @@ function getStats() {
         catch(GuzzleHttp\Exception\ClientException $e) {
           $mobile = 'FAILED';
         }
+        catch(GuzzleHttp\Exception\ServerException $e) {
+          $mobile = 'FAILED';
+        }
+        catch(Exception $e) {
+          $mobile = 'FAILED';
+        }
         if(!$mobile) {
           $json = $response->json();
           $mobile = 'Unknown';
           if(isset($json['formattedResults']['ruleResults']['SizeContentToViewport']['ruleImpact'])) {
-            // @TODO This 1 value is arbitrary... look into what it means
-            $mobile = $json['formattedResults']['ruleResults']['SizeContentToViewport']['ruleImpact'] > 1
-                    ? 'No'
-                    : 'Yes';
+            // @TODO Evaluate "break points" for these results
+            $mobile = $json['formattedResults']['ruleResults']['SizeContentToViewport']['ruleImpact'] > 3
+                   || $json['formattedResults']['ruleResults']['ConfigureViewport']['ruleImpact'] > 3
+                      ? 'No'
+                      : 'Yes';
           }
           $data[7] = $mobile;
         }
